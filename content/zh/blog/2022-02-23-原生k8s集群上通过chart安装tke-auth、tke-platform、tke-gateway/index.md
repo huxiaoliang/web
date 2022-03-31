@@ -10,20 +10,22 @@ slug: tkestack-installer-chart
 
 ## 前言
 
-[TKEStack](https://github.com/tkestack/tke) 是一个开源项目，它为在生产环境中部署容器的组织提供了一个容器管理平台。TKEStack 让您可以轻松地在任何地方运行 Kubernetes、满足 IT 需求并为 DevOps 团队赋能。
+[TKEStack](https://github.com/tkestack/tke) 是一个开源容器管理平台, 。TKEStack 让您可以轻松地在任何地方运行 Kubernetes、满足 IT 需求并为 DevOps 团队赋能。
 
-TKEStack 提供了丰富的组件实现用户管理、访问策略管理、集群管理、业务管理、监控、日志、私有镜像库等功能，这也相应地增加了在本地安装 TKEStack 项目的时间。对于部分用户来说，可能只需要 TKEStack 的用户管理、访问策略管理、集群管理、控制台访问等核心功能，但也要付出一样的时间成本。另外，TKEStack 安装的时候会部署 global 集群，并通过 global 集群进行独立集群创建和管理，并不支持在现有的 k8s 集群上安装集成 TKEStack 项目。
+TKEStack 提供了丰富的组件实现用户管理、访问策略管理、集群管理、业务管理、监控、日志、私有镜像库等功能，这也相应地增加了在本地安装 TKEStack 的时间。对于部分用户来说，可能只需要 TKEStack 的用户管理、访问策略管理、集群管理、控制台访问等核心功能，但也要付出一样的时间成本。另外，TKEStack 安装的时候会部署 global 集群，并通过 global 集群管理独立集群和导入集群的生命周期，并不支持在客户已有的 k8s 集群上安装集成 TKEStack
 
-基于上述背景，TKEStack 项目在最新的 v1.9.0 release 中，支持了 TKESatck 项目的轻量化安装场景。可以实现在已有的 k8s 集群上集成 TKESatck 项目的控制台访问、用户管理、集群管理等核心功能。
+基于上述背景，TKEStack 在最新的 v1.9.0 release 中，支持了轻量化安装场景，用户可以实现在已有的 k8s 集群上集成 TKESatck 项目的控制台访问、用户管理、集群管理等核心功能。
 
 ## 前置要求
 
-本文介绍的内容是建立在已经有一个正常运行的 k8s 集群的基础上，并且下面的操作需要在 master 节点上进行操作。如果没有现有的 k8s 集群，可以通过 kind 创建本地集群并进行下面的操作。
-本文介绍的内容需要通过 [helm](https://helm.sh/zh/docs/) 安装一些实验用途的组件，可参考[安装 Helm ](https://helm.sh/zh/docs/intro/install/)进行安装。
+- 本文介绍的内容是建立在已经有一个正常运行的 k8s 集群的基础上，并且以下的操作需要在 master 节点上进行。如果没有 k8s 集群，可以通过 kind 创建本地集群并进行以下的操作。
+- 本文介绍的内容需要通过 [helm cli](https://helm.sh/zh/docs/) 安装TKEStack的核心组件，可参考[安装 Helm ](https://helm.sh/zh/docs/intro/install/)进行安装。
 
 ## 轻量化安装 TKEStack
 
 ### 创建指定 namespace
+
+如果没有本地集群，需要 kindConfig.yaml
 
 tke-auth、tke-platform、tke-gateway 三个 chart 需要运行在指定的 namespace 下，执行如下命令：
 
@@ -41,7 +43,7 @@ kubectl create namespace tke
 git clone https://github.com/tkestack/tke.git
 ```
 
-在 TKEStack 项目的`charts/bin`目录放置了可执行文件`bin`和需要填写的yaml文件`customConfig.yaml`。`customConfig.yaml`文件中一些注释“必填”的参数，需要填写，其余的参数可根据需要选填，选填部分为空时会自动填充默认值。`customConfig.yaml`内容如下：
+在 TKEStack 项目的`charts/bin`目录放置了可执行文件`gen`和需要填写的yaml文件`customConfig.yaml`。`customConfig.yaml`文件中一些注释“必填”的参数，需要填写，其余的参数可根据需要选填，选填部分为空时会自动填充默认值。`customConfig.yaml`内容如下：
 
 ```yaml
 # 必填，etcd访问地址，形式如https://172.19.0.2:2379
@@ -145,9 +147,13 @@ tke-gateway:
 
 ```
 
-`customConfig.yaml` 文件中的参数填写完毕后，执行 `bin`,会在同级目录生成 `auth-chart-values.yaml`、`platform-chart-values.yaml`、`gateway-chart-values.yaml` 三个yaml文件，分别对应三个chart（tke-auth、tke-platform、tke-gateway）在安装时需要的 `values.yaml` 文件
+`customConfig.yaml` 文件中的参数填写完毕后，执行 `gen`,会在同级目录生成 `auth-chart-values.yaml`、`platform-chart-values.yaml`、`gateway-chart-values.yaml` 三个yaml文件，分别对应三个chart（tke-auth、tke-platform、tke-gateway）在安装时需要的 `values.yaml` 文件
 
 切换到项目的 `charts/` 目录，接下来进行chart的安装：
+
+```
+./gen 
+```
 
 ```sh
 # tke-auth的安装
@@ -164,10 +170,10 @@ helm install -f bin/platform-chart-values.yaml tke-platform tke-platform/
 helm install -f bin/gateway-chart-values.yaml tke-gateway tke-gateway/
 ```
 
-通过如下命令如果能查询到三个组件对应的 `api-resources`，则表示 `chart` 安装成功
+通过如下命令如果能查询到三个组件对应的 `deployed`，则表示 `chart` 安装成功
 
 ```sh
-kubectl api-resources | grep tke
+ helm list -n tke 
 ```
 
 chart安装完成后，可以查询到以下信息，如图所示：
